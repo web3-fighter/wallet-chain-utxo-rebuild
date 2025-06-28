@@ -226,7 +226,7 @@ type ConvertAddressParam struct {
 	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
 	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
 	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	Type          string `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
+	Format        string `protobuf:"bytes,4,opt,name=format,proto3" json:"format,omitempty"`
 	PublicKey     string `protobuf:"bytes,5,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 }
 
