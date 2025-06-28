@@ -1,6 +1,7 @@
 package bitcoin
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
 	"github.com/ecodeclub/ekit/slice"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/shopspring/decimal"
@@ -22,6 +24,7 @@ import (
 	"math"
 	"math/big"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -501,13 +504,61 @@ func (s *BitcoinNodeService) GetFee(ctx context.Context, param domain.FeeParam) 
 }
 
 func (s *BitcoinNodeService) SendTx(ctx context.Context, param domain.SendTxParam) (string, error) {
-	//TODO implement me
-	panic("implement me")
+	r := bytes.NewReader([]byte(param.RawTx))
+	var msgTx wire.MsgTx
+	err := msgTx.Deserialize(r)
+	if err != nil {
+		return "", err
+	}
+	txHash, err := s.btcClient.SendRawTransaction(&msgTx, true)
+	if err != nil {
+		return "", err
+	}
+	if strings.Compare(msgTx.TxHash().String(), txHash.String()) != 0 {
+		log.Error("broadcast transaction, tx hash mismatch", "local hash", msgTx.TxHash().String(), "hash from net", txHash.String(), "signedTx", param.RawTx)
+	}
+	return txHash.String(), nil
 }
 
 func (s *BitcoinNodeService) ListTxByAddress(ctx context.Context, param domain.TxAddressParam) ([]domain.TxMessage, error) {
-	//TODO implement me
-	panic("implement me")
+	transaction, err := s.thirdPartClient.GetTransactionsByAddress(param.Address,
+		strconv.Itoa(int(param.Page)), strconv.Itoa(int(param.Pagesize)))
+	if err != nil {
+		return nil, err
+	}
+	var txMessages []domain.TxMessage
+	for _, txItems := range transaction.Txs {
+		var fromAddrs []string
+		var toAddrs []string
+		var values []string
+		var direction int32
+		for _, inputs := range txItems.Inputs {
+			fromAddrs = append(fromAddrs, inputs.PrevOut.Addr)
+		}
+		txFee := txItems.Fee
+		for _, out := range txItems.Out {
+			toAddrs = append(toAddrs, out.Addr)
+			values = append(values, out.Value.String())
+		}
+		datetime := txItems.Time.String()
+		if strings.EqualFold(param.Address, fromAddrs[0]) {
+			direction = 0
+		} else {
+			direction = 1
+		}
+		txMessages = append(txMessages, domain.TxMessage{
+			Hash:     txItems.Hash,
+			Froms:    fromAddrs,
+			Tos:      toAddrs,
+			Values:   values,
+			Fee:      txFee.String(),
+			Status:   domain.TxStatus_Success,
+			Type:     direction,
+			Height:   txItems.BlockHeight.String(),
+			Datetime: datetime,
+		})
+	}
+	return txMessages, nil
 }
 
 func (s *BitcoinNodeService) GetTxByHash(ctx context.Context, param domain.GetTxByHashParam) (domain.TxMessage, error) {
