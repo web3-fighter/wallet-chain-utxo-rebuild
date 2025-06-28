@@ -1,23 +1,23 @@
 package domain
 
 type Block struct {
-	Msg    string              `protobuf:"bytes,2,opt,name=msg,proto3" json:"msg,omitempty"`
-	Height uint64              `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
-	Hash   string              `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
-	TxList []*BlockTransaction `protobuf:"bytes,5,rep,name=tx_list,json=txList,proto3" json:"tx_list,omitempty"`
+	Msg    string              `json:"msg,omitempty"`
+	Height uint64              `json:"height,omitempty"`
+	Hash   string              `json:"hash,omitempty"`
+	TxList []*BlockTransaction `json:"tx_list,omitempty"`
 }
 
 type Vin struct {
-	Hash    string `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
-	Index   uint32 `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`
-	Amount  int64  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
-	Address string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
+	Hash    string `json:"hash,omitempty"`
+	Index   uint32 `json:"index,omitempty"`
+	Amount  int64  `json:"amount,omitempty"`
+	Address string `json:"address,omitempty"`
 }
 
 type Vout struct {
-	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Amount  int64  `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
-	Index   uint32 `protobuf:"varint,3,opt,name=index,proto3" json:"index,omitempty"`
+	Address string `json:"address,omitempty"`
+	Amount  int64  `json:"amount,omitempty"`
+	Index   uint32 `json:"index,omitempty"`
 }
 
 type BlockTransaction struct {
@@ -37,6 +37,115 @@ type BlockTransaction struct {
 	Status        string  `json:"status,omitempty"`
 	Vin           []*Vin  `json:"vin,omitempty"`
 	Vout          []*Vout `json:"vout,omitempty"`
+}
+
+type UnspentOutputsParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Address       string `json:"address,omitempty"`
+}
+
+type UnspentOutput struct {
+	TxId            string `json:"tx_id,omitempty"`              // 原始交易哈希（正常顺序）
+	TxHashBigEndian string `json:"tx_hash_big_endian,omitempty"` // big-endian 格式的交易哈希（某些系统使用）
+	TxOutputN       uint64 `json:"tx_output_n,omitempty"`        // 这个 UTXO 在交易中是第几个输出
+	Script          string `json:"script,omitempty"`             // 脚本字段（scriptPubKey），后续签名需要
+	Height          string `json:"height,omitempty"`             // 区块高度（有可能没赋值）
+	BlockTime       string `json:"block_time,omitempty"`         // 区块时间（可选）
+	Address         string `json:"address,omitempty"`            // 属于哪个地址
+	UnspentAmount   string `json:"unspent_amount,omitempty"`     // 金额（单位：satoshi，string）
+	ValueHex        string `json:"value_hex,omitempty"`          // 金额（十六进制字符串，可用于某些原始格式）
+	Confirmations   uint64 `json:"confirmations,omitempty"`      // 确认数
+	Index           uint64 `json:"index,omitempty"`              // TxIndex：交易在区块中的顺序索引（非 vout）
+}
+
+type BlockHashParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Hash          string `json:"hash,omitempty"`
+	ViewTx        bool   `json:"view_tx,omitempty"`
+}
+
+type BlockNumberParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Height        int64  `json:"height,omitempty"`
+	ViewTx        bool   `json:"view_tx,omitempty"`
+}
+
+type BlockHeaderHashParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Hash          string `json:"hash,omitempty"`
+}
+
+type BlockHeader struct {
+	ParentHash string `json:"parent_hash,omitempty"`
+	BlockHash  string `json:"block_hash,omitempty"`
+	MerkleRoot string `json:"merkle_root,omitempty"`
+	Number     string `json:"number,omitempty"`
+}
+
+type BlockHeaderNumberParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Height        int64  `json:"height,omitempty"`
+}
+
+type ValidAddressParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Address       string `json:"address,omitempty"`
+}
+
+type ConvertAddressParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Format        string `json:"format,omitempty"`
+	PublicKey     string `json:"public_key,omitempty"`
+}
+
+type BalanceByAddressParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Address       string `json:"address,omitempty"`
+	Brc20Address  string `json:"brc20_address,omitempty"`
+}
+
+type Balance struct {
+	Network string `json:"network,omitempty"`
+	Balance string `json:"balance,omitempty"`
+}
+
+type FeeParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Coin          string `json:"coin,omitempty"`
+	Network       string `json:"network,omitempty"`
+	RawTx         string `json:"rawTx,omitempty"`
+}
+
+/*
+Fee
+字段	含义
+	BestFee	综合推荐费率（有可能是 "NormalFee" + 系统调控）
+	BestFeeSat	推荐费用的 satoshi 表示（可能用于预估费用）
+	SlowFee	慢速确认费率（较便宜，但可能等几十分钟）
+	NormalFee	平均确认时间（一般 1-3 blocks）
+	FastFee	快速确认（通常1个区块内）
+*/
+type Fee struct {
+	BestFee    string `json:"best_fee,omitempty"`
+	BestFeeSat string `json:"best_fee_sat,omitempty"`
+	SlowFee    string `json:"slow_fee,omitempty"`
+	NormalFee  string `json:"normal_fee,omitempty"`
+	FastFee    string `json:"fast_fee,omitempty"`
 }
 
 //  TODO-----------------------------
@@ -136,44 +245,6 @@ type SendTxParam struct {
 	RawTx         string `protobuf:"bytes,5,opt,name=raw_tx,json=rawTx,proto3" json:"raw_tx,omitempty"`
 }
 
-type FeeParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Coin          string `protobuf:"bytes,3,opt,name=coin,proto3" json:"coin,omitempty"`
-	Network       string `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
-	RawTx         string `protobuf:"bytes,5,opt,name=rawTx,proto3" json:"rawTx,omitempty"`
-	Address       string `protobuf:"bytes,6,opt,name=address,proto3" json:"address,omitempty"`
-}
-
-type Fee struct {
-	SlowFee   GasFee `protobuf:"bytes,3,opt,name=slow_fee,json=slowFee,proto3" json:"slow_fee,omitempty"`
-	NormalFee GasFee `protobuf:"bytes,4,opt,name=normal_fee,json=normalFee,proto3" json:"normal_fee,omitempty"`
-	FastFee   GasFee `protobuf:"bytes,5,opt,name=fast_fee,json=fastFee,proto3" json:"fast_fee,omitempty"`
-}
-
-type GasFee struct {
-	GasPrice  string
-	GasTipCap string
-	MultiVal  string
-}
-
-type AccountParam struct {
-	ConsumerToken    string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain            string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Coin             string `protobuf:"bytes,3,opt,name=coin,proto3" json:"coin,omitempty"`
-	Network          string `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
-	Address          string `protobuf:"bytes,5,opt,name=address,proto3" json:"address,omitempty"`
-	ContractAddress  string `protobuf:"bytes,6,opt,name=contract_address,json=contractAddress,proto3" json:"contract_address,omitempty"`
-	ProposerKeyIndex uint64 `protobuf:"varint,7,opt,name=proposer_key_index,json=proposerKeyIndex,proto3" json:"proposer_key_index,omitempty"`
-}
-
-type Account struct {
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	AccountNumber string `protobuf:"bytes,4,opt,name=account_number,json=accountNumber,proto3" json:"account_number,omitempty"`
-	Sequence      string `protobuf:"bytes,5,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	Balance       string `protobuf:"bytes,6,opt,name=balance,proto3" json:"balance,omitempty"`
-}
-
 type BlockHeaderByRangeParam struct {
 	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
 	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
@@ -182,93 +253,10 @@ type BlockHeaderByRangeParam struct {
 	End           string `protobuf:"bytes,5,opt,name=end,proto3" json:"end,omitempty"`
 }
 
-type BlockHeader struct {
-	Hash             string `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
-	ParentHash       string `protobuf:"bytes,2,opt,name=parent_hash,json=parentHash,proto3" json:"parent_hash,omitempty"`
-	UncleHash        string `protobuf:"bytes,3,opt,name=uncle_hash,json=uncleHash,proto3" json:"uncle_hash,omitempty"`
-	CoinBase         string `protobuf:"bytes,4,opt,name=coin_base,json=coinBase,proto3" json:"coin_base,omitempty"`
-	Root             string `protobuf:"bytes,5,opt,name=root,proto3" json:"root,omitempty"`
-	TxHash           string `protobuf:"bytes,6,opt,name=tx_hash,json=txHash,proto3" json:"tx_hash,omitempty"`
-	ReceiptHash      string `protobuf:"bytes,7,opt,name=receipt_hash,json=receiptHash,proto3" json:"receipt_hash,omitempty"`
-	ParentBeaconRoot string `protobuf:"bytes,8,opt,name=parent_beacon_root,json=parentBeaconRoot,proto3" json:"parent_beacon_root,omitempty"`
-	Difficulty       string `protobuf:"bytes,9,opt,name=difficulty,proto3" json:"difficulty,omitempty"`
-	Number           string `protobuf:"bytes,10,opt,name=number,proto3" json:"number,omitempty"`
-	GasLimit         uint64 `protobuf:"varint,11,opt,name=gas_limit,json=gasLimit,proto3" json:"gas_limit,omitempty"`
-	GasUsed          uint64 `protobuf:"varint,12,opt,name=gas_used,json=gasUsed,proto3" json:"gas_used,omitempty"`
-	Time             uint64 `protobuf:"varint,13,opt,name=time,proto3" json:"time,omitempty"`
-	Extra            string `protobuf:"bytes,14,opt,name=extra,proto3" json:"extra,omitempty"`
-	MixDigest        string `protobuf:"bytes,15,opt,name=mix_digest,json=mixDigest,proto3" json:"mix_digest,omitempty"`
-	Nonce            string `protobuf:"bytes,16,opt,name=nonce,proto3" json:"nonce,omitempty"`
-	BaseFee          string `protobuf:"bytes,17,opt,name=base_fee,json=baseFee,proto3" json:"base_fee,omitempty"`
-	WithdrawalsHash  string `protobuf:"bytes,18,opt,name=withdrawals_hash,json=withdrawalsHash,proto3" json:"withdrawals_hash,omitempty"`
-	BlobGasUsed      uint64 `protobuf:"varint,19,opt,name=blob_gas_used,json=blobGasUsed,proto3" json:"blob_gas_used,omitempty"`
-	ExcessBlobGas    uint64 `protobuf:"varint,20,opt,name=excess_blob_gas,json=excessBlobGas,proto3" json:"excess_blob_gas,omitempty"`
-}
-
-type BlockHeaderNumberParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	Height        int64  `protobuf:"varint,4,opt,name=height,proto3" json:"height,omitempty"`
-}
-
-type BlockHeaderHashParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	Hash          string `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
-}
-
-type BlockHashParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Hash          string `protobuf:"bytes,3,opt,name=hash,proto3" json:"hash,omitempty"`
-	ViewTx        bool   `protobuf:"varint,4,opt,name=view_tx,json=viewTx,proto3" json:"view_tx,omitempty"`
-}
-
-type BlockNumberParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Height        int64  `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
-	ViewTx        bool   `protobuf:"varint,4,opt,name=view_tx,json=viewTx,proto3" json:"view_tx,omitempty"`
-}
-
-//type Block struct {
-//	Height       int64               `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
-//	Hash         string              `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
-//	BaseFee      string              `protobuf:"bytes,5,opt,name=base_fee,json=baseFee,proto3" json:"base_fee,omitempty"`
-//	Transactions []*BlockTransaction `protobuf:"bytes,6,rep,name=transactions,proto3" json:"transactions,omitempty"`
-//}
-//
-//type BlockTransaction struct {
-//	From           string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
-//	To             string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
-//	TokenAddress   string `protobuf:"bytes,3,opt,name=token_address,json=tokenAddress,proto3" json:"token_address,omitempty"`
-//	ContractWallet string `protobuf:"bytes,4,opt,name=contract_wallet,json=contractWallet,proto3" json:"contract_wallet,omitempty"`
-//	Hash           string `protobuf:"bytes,5,opt,name=hash,proto3" json:"hash,omitempty"`
-//	Height         uint64 `protobuf:"varint,6,opt,name=height,proto3" json:"height,omitempty"`
-//	Amount         string `protobuf:"bytes,7,opt,name=amount,proto3" json:"amount,omitempty"`
-//}
-
-type ValidAddressParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	Address       string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
-}
-
 type SupportChainsParam struct {
 	ConsumerToken string `json:"consumer_token,omitempty"`
 	Chain         string `json:"chain,omitempty"`
 	Network       string `json:"network,omitempty"`
-}
-
-type ConvertAddressParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	Format        string `protobuf:"bytes,4,opt,name=format,proto3" json:"format,omitempty"`
-	PublicKey     string `protobuf:"bytes,5,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 }
 
 type TxStatus int32

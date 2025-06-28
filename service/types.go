@@ -13,8 +13,8 @@ type WalletUtXoService interface {
 	GetBlockByHash(ctx context.Context, param domain.BlockHashParam) (domain.Block, error)
 	GetBlockHeaderByHash(ctx context.Context, param domain.BlockHeaderHashParam) (domain.BlockHeader, error)
 	GetBlockHeaderByNumber(ctx context.Context, param domain.BlockHeaderNumberParam) (domain.BlockHeader, error)
-	ListBlockHeaderByRange(ctx context.Context, param domain.BlockHeaderByRangeParam) ([]domain.BlockHeader, error)
-	GetAccount(ctx context.Context, param domain.AccountParam) (domain.Account, error)
+	GetUnspentOutputs(ctx context.Context, req domain.UnspentOutputsParam) ([]domain.UnspentOutput, error)
+	GetBalanceByAddress(ctx context.Context, param domain.BalanceByAddressParam) (domain.Balance, error)
 	GetFee(ctx context.Context, param domain.FeeParam) (domain.Fee, error)
 	SendTx(ctx context.Context, param domain.SendTxParam) (string, error)
 	ListTxByAddress(ctx context.Context, param domain.TxAddressParam) ([]domain.TxMessage, error)
@@ -24,5 +24,4 @@ type WalletUtXoService interface {
 	BuildSignedTransaction(ctx context.Context, param domain.SignedTransactionParam) (domain.SignedTransaction, error)
 	DecodeTransaction(ctx context.Context, param domain.DecodeTransactionParam) (string, error)
 	VerifySignedTransaction(ctx context.Context, param domain.VerifyTransactionParam) (bool, error)
-	GetExtraData(ctx context.Context, param domain.ExtraDataParam) (string, error)
 }

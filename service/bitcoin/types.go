@@ -218,6 +218,7 @@ type UnspentOutput struct {
 	ValueHex        string `json:"value_hex"`
 	Confirmations   uint64 `json:"confirmations"`
 	TxIndex         uint64 `json:"tx_index"`
+	BlockTime       string `json:"block_time,omitempty"`
 }
 
 type UnspentOutputList struct {

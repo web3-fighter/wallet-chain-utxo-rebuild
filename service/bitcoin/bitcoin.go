@@ -48,6 +48,31 @@ type BitcoinNodeService struct {
 	unimplemente.UnimplementedService
 }
 
+// GetUnspentOutputs 查询某个地址的 UTXO 列表（未花费输出），
+func (s *BitcoinNodeService) GetUnspentOutputs(ctx context.Context, req domain.UnspentOutputsParam) ([]domain.UnspentOutput, error) {
+	utxoList, err := s.thirdPartClient.GetAccountUtxo(req.Address)
+	if err != nil {
+		return nil, err
+	}
+	var unspentOutputList []domain.UnspentOutput
+	for _, value := range utxoList {
+		unspentOutput := domain.UnspentOutput{
+			TxHashBigEndian: value.TxHashBigEndian,
+			TxId:            value.TxHash,
+			TxOutputN:       value.TxOutputN,
+			Script:          value.Script,
+			UnspentAmount:   strconv.FormatUint(value.Value, 10),
+			Index:           value.TxIndex,
+			Address:         req.Address,
+			ValueHex:        value.ValueHex,
+			Confirmations:   value.Confirmations,
+			BlockTime:       value.BlockTime,
+		}
+		unspentOutputList = append(unspentOutputList, unspentOutput)
+	}
+	return unspentOutputList, nil
+}
+
 func (s *BitcoinNodeService) ConvertAddress(ctx context.Context, param domain.ConvertAddressParam) (string, error) {
 	var address string
 	compressedPubKeyBytes, err := hex.DecodeString(param.PublicKey)
@@ -298,6 +323,7 @@ func (s *BitcoinNodeService) assembleUtXoTransactionReply(tx RawTransactionData,
 /*
 btcToSatoshi 作用：将 BTC（浮点）精确地转换为 satoshi（整数），避免浮点误差。
 实现逻辑：
+
 	把 float64 格式化成 string，防止精度损失
 	使用 decimal 库进行乘法精确计算：BTC * 10^8
 	转为 *big.Int 返回
@@ -311,33 +337,167 @@ func btcToSatoshi(btcCount float64) *big.Int {
 }
 
 func (s *BitcoinNodeService) GetBlockByHash(ctx context.Context, param domain.BlockHashParam) (domain.Block, error) {
-	//TODO implement me
-	panic("implement me")
+	var params []json.RawMessage
+	numBlocksJSON, err := json.Marshal(param.Hash)
+	if err != nil {
+		log.Error("marshal block hash fail", "err", err)
+		return domain.Block{}, err
+	}
+	params = []json.RawMessage{numBlocksJSON}
+	block, err := s.btcClient.RawRequest("getblock", params)
+	if err != nil {
+		log.Error("get block by hash fail", "err", err)
+		return domain.Block{}, err
+	}
+
+	var resultBlock BlockData
+	err = json.Unmarshal(block, &resultBlock)
+	if err != nil {
+		log.Error("Unmarshal json fail", "err", err)
+	}
+	var txList []*domain.BlockTransaction
+	//  遍历交易 TxIDs，获取交易内容
+	for _, txId := range resultBlock.Tx {
+		txIdJson, _ := json.Marshal(txId)
+		boolJSON, _ := json.Marshal(true)
+		dataJSON := []json.RawMessage{txIdJson, boolJSON}
+		// 通过 getrawtransaction(txid, true)，逐个获取每个交易的完整结构（包括 inputs, outputs, scriptSig 等）
+		tx, err := s.btcClient.RawRequest("getrawtransaction", dataJSON)
+		if err != nil {
+			fmt.Println("get raw transaction fail", "err", err)
+		}
+		var rawTx RawTransactionData
+		err = json.Unmarshal(tx, &rawTx)
+		if err != nil {
+			log.Error("json unmarshal fail", "err", err)
+			return domain.Block{}, err
+		}
+		reply, err := s.assembleUtXoTransactionReply(rawTx, int64(resultBlock.Height), int64(resultBlock.Time),
+			func(txId string, index uint32) (int64, string, error) {
+				preHash, err2 := chainhash.NewHashFromStr(txId)
+				if err2 != nil {
+					return 0, "", err2
+				}
+				preHashJson, _ := json.Marshal(preHash)
+				preHashBoolJSON, _ := json.Marshal(true)
+				preDataJSON := []json.RawMessage{preHashJson, preHashBoolJSON}
+				preTx, err2 := s.btcClient.RawRequest("getrawtransaction", preDataJSON)
+				if err2 != nil {
+					return 0, "", err2
+				}
+				var preRawTx RawTransactionData
+				err2 = json.Unmarshal(preTx, &preRawTx)
+				if err2 != nil {
+					log.Error("json unmarshal fail", "err", err2)
+					return 0, "", err2
+				}
+				amount := btcToSatoshi(preRawTx.Vout[index].Value).Int64()
+
+				return amount, preRawTx.Vout[index].ScriptPubKey.Addresses[0], nil
+			})
+		txList = append(txList, &domain.BlockTransaction{
+			Hash:          reply.TxHash,
+			Fee:           reply.CostFee,
+			Size:          rawTx.Size,
+			VSize:         rawTx.VSize,
+			Weight:        rawTx.Weight,
+			LockTime:      rawTx.LockTime,
+			Hex:           rawTx.Hex,
+			Version:       rawTx.Version,
+			Time:          rawTx.Time,
+			BlockHeight:   reply.BlockHeight,
+			BlockTime:     reply.BlockTime,
+			Blockhash:     rawTx.Blockhash,
+			Confirmations: rawTx.Confirmations,
+			Status:        TxStatus_name[reply.Status.ToInt32()],
+			Vin: slice.Map(reply.Vins, func(idx int, item *VinItem) *domain.Vin {
+				return &domain.Vin{
+					Hash:    item.Hash,
+					Index:   item.Index,
+					Amount:  item.Amount,
+					Address: item.Address,
+				}
+			}),
+			Vout: slice.Map(reply.Vouts, func(idx int, item *VoutItem) *domain.Vout {
+				return &domain.Vout{
+					Address: item.Address,
+					Amount:  item.Amount,
+					Index:   item.Index,
+				}
+			}),
+		})
+	}
+	return domain.Block{
+		Height: resultBlock.Height,
+		Hash:   param.Hash,
+		TxList: txList,
+	}, nil
 }
 
 func (s *BitcoinNodeService) GetBlockHeaderByHash(ctx context.Context, param domain.BlockHeaderHashParam) (domain.BlockHeader, error) {
-	//TODO implement me
-	panic("implement me")
+	hash, err := chainhash.NewHashFromStr(param.Hash)
+	if err != nil {
+		log.Error("format string to hash fail", "err", err)
+	}
+	blockHeader, err := s.btcClient.GetBlockHeader(hash)
+	if err != nil {
+		return domain.BlockHeader{}, err
+	}
+	return domain.BlockHeader{
+		ParentHash: blockHeader.PrevBlock.String(),
+		Number:     string(blockHeader.Version),
+		BlockHash:  param.Hash,
+		MerkleRoot: blockHeader.MerkleRoot.String(),
+	}, nil
 }
 
 func (s *BitcoinNodeService) GetBlockHeaderByNumber(ctx context.Context, param domain.BlockHeaderNumberParam) (domain.BlockHeader, error) {
-	//TODO implement me
-	panic("implement me")
+	blockNumber := param.Height
+	if blockNumber == 0 {
+		latestBlock, err := s.btcClient.GetBlockCount()
+		if err != nil {
+			return domain.BlockHeader{}, err
+		}
+		blockNumber = latestBlock
+	}
+	blockHash, err := s.btcClient.GetBlockHash(blockNumber)
+	if err != nil {
+		log.Error("get block hash by number fail", "err", err)
+		return domain.BlockHeader{}, err
+	}
+	blockHeader, err := s.btcClient.GetBlockHeader(blockHash)
+	if err != nil {
+		return domain.BlockHeader{}, err
+	}
+	return domain.BlockHeader{
+		ParentHash: blockHeader.PrevBlock.String(),
+		Number:     string(blockHeader.Version),
+		BlockHash:  blockHash.String(),
+		MerkleRoot: blockHeader.MerkleRoot.String(),
+	}, nil
 }
 
-func (s *BitcoinNodeService) ListBlockHeaderByRange(ctx context.Context, param domain.BlockHeaderByRangeParam) ([]domain.BlockHeader, error) {
-	//TODO implement me
-	panic("implement me")
+func (s *BitcoinNodeService) GetBalanceByAddress(ctx context.Context, param domain.BalanceByAddressParam) (domain.Balance, error) {
+	balance, err := s.thirdPartClient.GetBalanceByAddress(param.Address)
+	if err != nil {
+		return domain.Balance{}, err
+	}
+	return domain.Balance{Balance: balance}, nil
 }
 
-func (s *BitcoinNodeService) GetAccount(ctx context.Context, param domain.AccountParam) (domain.Account, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
+// GetFee 获取 BTC 网络手续费（Fee）推荐值
 func (s *BitcoinNodeService) GetFee(ctx context.Context, param domain.FeeParam) (domain.Fee, error) {
-	//TODO implement me
-	panic("implement me")
+	gasFeeResp, err := s.btcDataClient.GetFee(Symbol)
+	if err != nil {
+		return domain.Fee{}, err
+	}
+	return domain.Fee{
+		BestFee:    gasFeeResp.BestTransactionFee,
+		BestFeeSat: gasFeeResp.BestTransactionFeeSat,
+		SlowFee:    gasFeeResp.SlowGasPrice,
+		NormalFee:  gasFeeResp.StandardGasPrice,
+		FastFee:    gasFeeResp.RapidGasPrice,
+	}, nil
 }
 
 func (s *BitcoinNodeService) SendTx(ctx context.Context, param domain.SendTxParam) (string, error) {
@@ -371,11 +531,6 @@ func (s *BitcoinNodeService) DecodeTransaction(ctx context.Context, param domain
 }
 
 func (s *BitcoinNodeService) VerifySignedTransaction(ctx context.Context, param domain.VerifyTransactionParam) (bool, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *BitcoinNodeService) GetExtraData(ctx context.Context, param domain.ExtraDataParam) (string, error) {
 	//TODO implement me
 	panic("implement me")
 }

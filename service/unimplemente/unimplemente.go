@@ -10,6 +10,14 @@ var _ service.WalletUtXoService = (*UnimplementedService)(nil)
 
 type UnimplementedService struct{}
 
+func (s *UnimplementedService) GetBalanceByAddress(ctx context.Context, param domain.BalanceByAddressParam) (domain.Balance, error) {
+	return domain.Balance{}, nil
+}
+
+func (s *UnimplementedService) GetUnspentOutputs(ctx context.Context, req domain.UnspentOutputsParam) ([]domain.UnspentOutput, error) {
+	return nil, nil
+}
+
 func (s *UnimplementedService) GetBlockHeaderByNumber(ctx context.Context, param domain.BlockHeaderNumberParam) (domain.BlockHeader, error) {
 	return domain.BlockHeader{}, nil
 }
@@ -36,14 +44,6 @@ func (s *UnimplementedService) GetBlockByHash(ctx context.Context, param domain.
 
 func (s *UnimplementedService) GetBlockHeaderByHash(ctx context.Context, param domain.BlockHeaderHashParam) (domain.BlockHeader, error) {
 	return domain.BlockHeader{}, nil
-}
-
-func (s *UnimplementedService) ListBlockHeaderByRange(ctx context.Context, param domain.BlockHeaderByRangeParam) ([]domain.BlockHeader, error) {
-	return nil, nil
-}
-
-func (s *UnimplementedService) GetAccount(ctx context.Context, param domain.AccountParam) (domain.Account, error) {
-	return domain.Account{}, nil
 }
 
 func (s *UnimplementedService) GetFee(ctx context.Context, param domain.FeeParam) (domain.Fee, error) {
