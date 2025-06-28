@@ -1,6 +1,43 @@
 package bitcoin
 
-import "math/big"
+import (
+	"math/big"
+)
+
+type TxStatus int32
+
+func (x TxStatus) ToInt32() int32 {
+	return int32(x)
+}
+
+const (
+	TxStatus_NotFound              TxStatus = 0
+	TxStatus_Pending               TxStatus = 1
+	TxStatus_Failed                TxStatus = 2
+	TxStatus_Success               TxStatus = 3
+	TxStatus_ContractExecuteFailed TxStatus = 4
+	TxStatus_Other                 TxStatus = 5
+)
+
+// Enum value maps for TxStatus.
+var (
+	TxStatus_name = map[int32]string{
+		0: "NotFound",
+		1: "Pending",
+		2: "Failed",
+		3: "Success",
+		4: "ContractExecuteFailed",
+		5: "Other",
+	}
+	TxStatus_value = map[string]int32{
+		"NotFound":              0,
+		"Pending":               1,
+		"Failed":                2,
+		"Success":               3,
+		"ContractExecuteFailed": 4,
+		"Other":                 5,
+	}
+)
 
 type SpendingOutpointsItem struct {
 	N       uint64  `json:"n"`
@@ -97,24 +134,31 @@ type ScriptSig struct {
 }
 
 type Vin struct {
+	Coinbase    string    `json:"coinbase"`
 	TxId        string    `json:"txid"`
-	Vout        uint64    `json:"vout"`
+	Vout        uint32    `json:"vout"`
 	ScriptSig   ScriptSig `json:"scriptSig"`
 	Sequence    uint64    `json:"sequence"`
 	TxInWitness []string  `json:"txinwitness"`
 }
 
 type ScriptPubKey struct {
-	Asm     string `json:"asm"`
-	Hex     string `json:"hex"`
-	Desc    string `json:"desc"`
-	Address string `json:"addresses"`
-	Type    string `json:"type"`
+	//Asm     string `json:"asm"`
+	//Hex     string `json:"hex"`
+	//Desc    string `json:"desc"`
+	//Address string `json:"addresses"`
+	//Type    string `json:"type"`
+
+	Asm       string   `json:"asm"`
+	Hex       string   `json:"hex,omitempty"`
+	ReqSigs   int32    `json:"reqSigs,omitempty"`
+	Type      string   `json:"type"`
+	Addresses []string `json:"addresses,omitempty"`
 }
 
 type Vout struct {
-	Value        uint64       `json:"value"`
-	N            uint64       `json:"n"`
+	Value        float64      `json:"value"`
+	N            uint32       `json:"n"`
 	ScriptPubKey ScriptPubKey `json:"scriptpubkey"`
 }
 
@@ -133,6 +177,30 @@ type RawTransactionData struct {
 	Confirmations uint64 `json:"confirmations"`
 	BlockTime     uint64 `json:"blocktime"`
 	Time          uint64 `json:"time"`
+}
+
+type VinItem struct {
+	Hash    string `json:"hash,omitempty"`
+	Index   uint32 `json:"index,omitempty"`
+	Amount  int64  `json:"amount,omitempty"`
+	Address string `json:"address,omitempty"`
+}
+
+type VoutItem struct {
+	Address string `json:"address,omitempty"`
+	Amount  int64  `json:"amount,omitempty"`
+	Index   uint32 `json:"index,omitempty"`
+}
+
+type UtxoTransaction struct {
+	TxHash      string      `protobuf:"bytes,3,opt,name=tx_hash,json=txHash,proto3" json:"tx_hash,omitempty"`
+	Status      TxStatus    `protobuf:"varint,4,opt,name=status,proto3,enum=savour_rpc.wallet.TxStatus" json:"status,omitempty"`
+	Vins        []*VinItem  `protobuf:"bytes,5,rep,name=vins,proto3" json:"vins,omitempty"`
+	Vouts       []*VoutItem `protobuf:"bytes,6,rep,name=vouts,proto3" json:"vouts,omitempty"`
+	SignHashes  [][]byte    `protobuf:"bytes,7,rep,name=sign_hashes,json=signHashes,proto3" json:"sign_hashes,omitempty"`
+	CostFee     string      `protobuf:"bytes,8,opt,name=cost_fee,json=costFee,proto3" json:"cost_fee,omitempty"`
+	BlockHeight uint64      `protobuf:"varint,9,opt,name=block_height,json=blockHeight,proto3" json:"block_height,omitempty"`
+	BlockTime   uint64      `protobuf:"varint,10,opt,name=block_time,json=blockTime,proto3" json:"block_time,omitempty"`
 }
 
 type AccountBalance struct {

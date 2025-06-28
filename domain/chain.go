@@ -1,5 +1,46 @@
 package domain
 
+type Block struct {
+	Msg    string              `protobuf:"bytes,2,opt,name=msg,proto3" json:"msg,omitempty"`
+	Height uint64              `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
+	Hash   string              `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
+	TxList []*BlockTransaction `protobuf:"bytes,5,rep,name=tx_list,json=txList,proto3" json:"tx_list,omitempty"`
+}
+
+type Vin struct {
+	Hash    string `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
+	Index   uint32 `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`
+	Amount  int64  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	Address string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
+}
+
+type Vout struct {
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	Amount  int64  `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	Index   uint32 `protobuf:"varint,3,opt,name=index,proto3" json:"index,omitempty"`
+}
+
+type BlockTransaction struct {
+	Hash          string  `son:"hash,omitempty"`
+	Fee           string  `json:"fee,omitempty"`
+	Version       uint64  `json:"version"`
+	Size          uint64  `json:"size"`
+	VSize         uint64  `json:"vsize"`
+	Weight        uint64  `json:"weight"`
+	LockTime      uint64  `json:"locktime"`
+	Hex           string  `json:"hex"`
+	Blockhash     string  `json:"blockhash"`
+	Confirmations uint64  `json:"confirmations"`
+	BlockTime     uint64  `json:"blocktime"`
+	Time          uint64  `json:"time"`
+	BlockHeight   uint64  `json:"block_height"`
+	Status        string  `json:"status,omitempty"`
+	Vin           []*Vin  `json:"vin,omitempty"`
+	Vout          []*Vout `json:"vout,omitempty"`
+}
+
+//  TODO-----------------------------
+
 type CommonParam struct {
 	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
 	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
@@ -192,22 +233,22 @@ type BlockNumberParam struct {
 	ViewTx        bool   `protobuf:"varint,4,opt,name=view_tx,json=viewTx,proto3" json:"view_tx,omitempty"`
 }
 
-type Block struct {
-	Height       int64               `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
-	Hash         string              `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
-	BaseFee      string              `protobuf:"bytes,5,opt,name=base_fee,json=baseFee,proto3" json:"base_fee,omitempty"`
-	Transactions []*BlockTransaction `protobuf:"bytes,6,rep,name=transactions,proto3" json:"transactions,omitempty"`
-}
-
-type BlockTransaction struct {
-	From           string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
-	To             string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
-	TokenAddress   string `protobuf:"bytes,3,opt,name=token_address,json=tokenAddress,proto3" json:"token_address,omitempty"`
-	ContractWallet string `protobuf:"bytes,4,opt,name=contract_wallet,json=contractWallet,proto3" json:"contract_wallet,omitempty"`
-	Hash           string `protobuf:"bytes,5,opt,name=hash,proto3" json:"hash,omitempty"`
-	Height         uint64 `protobuf:"varint,6,opt,name=height,proto3" json:"height,omitempty"`
-	Amount         string `protobuf:"bytes,7,opt,name=amount,proto3" json:"amount,omitempty"`
-}
+//type Block struct {
+//	Height       int64               `protobuf:"varint,3,opt,name=height,proto3" json:"height,omitempty"`
+//	Hash         string              `protobuf:"bytes,4,opt,name=hash,proto3" json:"hash,omitempty"`
+//	BaseFee      string              `protobuf:"bytes,5,opt,name=base_fee,json=baseFee,proto3" json:"base_fee,omitempty"`
+//	Transactions []*BlockTransaction `protobuf:"bytes,6,rep,name=transactions,proto3" json:"transactions,omitempty"`
+//}
+//
+//type BlockTransaction struct {
+//	From           string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
+//	To             string `protobuf:"bytes,2,opt,name=to,proto3" json:"to,omitempty"`
+//	TokenAddress   string `protobuf:"bytes,3,opt,name=token_address,json=tokenAddress,proto3" json:"token_address,omitempty"`
+//	ContractWallet string `protobuf:"bytes,4,opt,name=contract_wallet,json=contractWallet,proto3" json:"contract_wallet,omitempty"`
+//	Hash           string `protobuf:"bytes,5,opt,name=hash,proto3" json:"hash,omitempty"`
+//	Height         uint64 `protobuf:"varint,6,opt,name=height,proto3" json:"height,omitempty"`
+//	Amount         string `protobuf:"bytes,7,opt,name=amount,proto3" json:"amount,omitempty"`
+//}
 
 type ValidAddressParam struct {
 	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
