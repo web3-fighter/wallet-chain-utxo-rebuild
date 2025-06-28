@@ -1,5 +1,39 @@
 package domain
 
+type TxAddressParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Coin          string `json:"coin,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Address       string `json:"address,omitempty"`
+	Brc20Address  string `json:"brc20_address,omitempty"`
+	Page          uint32 `json:"page,omitempty"`
+	Pagesize      uint32 `json:"pagesize,omitempty"`
+	Cursor        string `json:"cursor,omitempty"`
+}
+
+type TxMessage struct {
+	Hash         string   `json:"hash,omitempty"`
+	Index        uint32   `json:"index,omitempty"`
+	Froms        []string `json:"froms,omitempty"`
+	Tos          []string `json:"tos,omitempty"`
+	Values       []string `json:"values,omitempty"`
+	Fee          string   `json:"fee,omitempty"`
+	Status       TxStatus `json:"status,omitempty"`
+	Type         int32    `json:"type,omitempty"`
+	Height       string   `json:"height,omitempty"`
+	Brc20Address string   `json:"brc20_address,omitempty"`
+	Datetime     string   `json:"datetime,omitempty"`
+}
+
+type SendTxParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Coin          string `json:"coin,omitempty"`
+	Network       string `json:"network,omitempty"`
+	RawTx         string `json:"raw_tx,omitempty"`
+}
+
 type Block struct {
 	Msg    string              `json:"msg,omitempty"`
 	Height uint64              `json:"height,omitempty"`
@@ -134,6 +168,7 @@ type FeeParam struct {
 /*
 Fee
 字段	含义
+
 	BestFee	综合推荐费率（有可能是 "NormalFee" + 系统调控）
 	BestFeeSat	推荐费用的 satoshi 表示（可能用于预估费用）
 	SlowFee	慢速确认费率（较便宜，但可能等几十分钟）
@@ -208,41 +243,6 @@ type GetTxByHashParam struct {
 	Coin          string `protobuf:"bytes,3,opt,name=coin,proto3" json:"coin,omitempty"`
 	Network       string `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
 	Hash          string `protobuf:"bytes,5,opt,name=hash,proto3" json:"hash,omitempty"`
-}
-
-type TxAddressParam struct {
-	ConsumerToken   string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain           string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Coin            string `protobuf:"bytes,3,opt,name=coin,proto3" json:"coin,omitempty"`
-	Network         string `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
-	Address         string `protobuf:"bytes,5,opt,name=address,proto3" json:"address,omitempty"`
-	ContractAddress string `protobuf:"bytes,6,opt,name=contract_address,json=contractAddress,proto3" json:"contract_address,omitempty"`
-	Page            uint32 `protobuf:"varint,7,opt,name=page,proto3" json:"page,omitempty"`
-	PageSize        uint32 `protobuf:"varint,8,opt,name=pagesize,proto3" json:"pagesize,omitempty"`
-	Cursor          string `protobuf:"bytes,9,opt,name=cursor,proto3" json:"cursor,omitempty"`
-}
-
-type TxMessage struct {
-	Hash            string   `protobuf:"bytes,1,opt,name=hash,proto3" json:"hash,omitempty"`
-	Index           uint32   `protobuf:"varint,2,opt,name=index,proto3" json:"index,omitempty"`
-	Froms           []string `protobuf:"bytes,3,rep,name=froms,proto3" json:"froms,omitempty"`
-	Tos             []string `protobuf:"bytes,4,rep,name=tos,proto3" json:"tos,omitempty"`
-	Values          []string `protobuf:"bytes,7,rep,name=values,proto3" json:"values,omitempty"`
-	Fee             string   `protobuf:"bytes,5,opt,name=fee,proto3" json:"fee,omitempty"`
-	Status          TxStatus `protobuf:"varint,6,opt,name=status,proto3,enum=dapplink.account.TxStatus" json:"status,omitempty"`
-	Type            int32    `protobuf:"varint,8,opt,name=type,proto3" json:"type,omitempty"`
-	Height          string   `protobuf:"bytes,9,opt,name=height,proto3" json:"height,omitempty"`
-	ContractAddress string   `protobuf:"bytes,10,opt,name=contract_address,json=contractAddress,proto3" json:"contract_address,omitempty"`
-	Datetime        string   `protobuf:"bytes,11,opt,name=datetime,proto3" json:"datetime,omitempty"`
-	Data            string   `protobuf:"bytes,12,opt,name=data,proto3" json:"data,omitempty"`
-}
-
-type SendTxParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Coin          string `protobuf:"bytes,3,opt,name=coin,proto3" json:"coin,omitempty"`
-	Network       string `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
-	RawTx         string `protobuf:"bytes,5,opt,name=raw_tx,json=rawTx,proto3" json:"raw_tx,omitempty"`
 }
 
 type BlockHeaderByRangeParam struct {
