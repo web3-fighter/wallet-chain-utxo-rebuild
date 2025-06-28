@@ -12,7 +12,7 @@ type BlockChainClient struct {
 	client *gresty.Client
 }
 
-func (c *BlockChainClient) GetAccountBalance(address string) (string, error) {
+func (c *BlockChainClient) GetBalanceByAddress(address string) (string, error) {
 	var accountBalance map[string]*AccountBalance
 	response, err := c.client.R().
 		SetResult(&accountBalance).
