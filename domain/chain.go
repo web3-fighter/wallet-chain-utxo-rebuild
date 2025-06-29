@@ -1,5 +1,27 @@
 package domain
 
+type UnSignTransactionParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Fee           string // 可选，最终会体现在 output 金额里"`
+	Vin           []Vin  // 输入（来源地址、引用 txid 和 vout）
+	Vout          []Vout // 输出（目标地址、金额）
+}
+
+type UnSignTransactionResult struct {
+	TxData     []byte   `json:"tx_data,omitempty"`
+	SignHashes [][]byte `json:"sign_hashes,omitempty"`
+}
+
+type GetTxByHashParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Coin          string `json:"coin,omitempty"`
+	Network       string `json:"network,omitempty"`
+	Hash          string `json:"hash,omitempty"`
+}
+
 type TxAddressParam struct {
 	ConsumerToken string `json:"consumer_token,omitempty"`
 	Chain         string `json:"chain,omitempty"`
@@ -13,17 +35,23 @@ type TxAddressParam struct {
 }
 
 type TxMessage struct {
-	Hash         string   `json:"hash,omitempty"`
-	Index        uint32   `json:"index,omitempty"`
-	Froms        []string `json:"froms,omitempty"`
-	Tos          []string `json:"tos,omitempty"`
-	Values       []string `json:"values,omitempty"`
-	Fee          string   `json:"fee,omitempty"`
-	Status       TxStatus `json:"status,omitempty"`
-	Type         int32    `json:"type,omitempty"`
-	Height       string   `json:"height,omitempty"`
-	Brc20Address string   `json:"brc20_address,omitempty"`
-	Datetime     string   `json:"datetime,omitempty"`
+	Hash         string   `json:"hash,omitempty"`          // 交易哈希
+	Index        uint32   `json:"index,omitempty"`         // 可选，交易在区块中的顺序
+	Froms        []string `json:"froms,omitempty"`         // 所有输入地址
+	Tos          []string `json:"tos,omitempty"`           // 所有输出地址
+	Values       []Value  `json:"values,omitempty"`        // 输出金额（字符串格式，单位可能为 satoshi）
+	Fee          string   `json:"fee,omitempty"`           // 手续费（字符串格式）
+	Status       TxStatus `json:"status,omitempty"`        // 状态（通常为成功）
+	Type         int32    `json:"type,omitempty"`          // 方向：0 = 转出，1 = 转入
+	Height       string   `json:"height,omitempty"`        // 所在区块高度
+	Brc20Address string   `json:"brc20_address,omitempty"` // 可选，BRC-20 标准相关字段
+	Datetime     string   `json:"datetime,omitempty"`      // 区块时间（交易时间）
+}
+
+type Value struct {
+	Address string `json:"address,omitempty"`
+	Value   string `json:"value,omitempty"`
+	//Type string  `json:"type,omitempty"`
 }
 
 type SendTxParam struct {
@@ -228,21 +256,6 @@ type SignedTransactionParam struct {
 type SignedTransaction struct {
 	TxHash   string `json:"tx_hash,omitempty"`
 	SignedTx string `json:"signed_tx,omitempty"`
-}
-
-type UnSignTransactionParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	Base64Tx      string `protobuf:"bytes,4,opt,name=base64_tx,json=base64Tx,proto3" json:"base64_tx,omitempty"`
-}
-
-type GetTxByHashParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Coin          string `protobuf:"bytes,3,opt,name=coin,proto3" json:"coin,omitempty"`
-	Network       string `protobuf:"bytes,4,opt,name=network,proto3" json:"network,omitempty"`
-	Hash          string `protobuf:"bytes,5,opt,name=hash,proto3" json:"hash,omitempty"`
 }
 
 type BlockHeaderByRangeParam struct {
