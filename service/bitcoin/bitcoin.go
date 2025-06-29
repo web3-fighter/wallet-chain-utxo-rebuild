@@ -520,7 +520,10 @@ func (s *BitcoinNodeService) SendTx(ctx context.Context, param domain.SendTxPara
 	return txHash.String(), nil
 }
 
+// ListTxByAddress 查询某个地址的历史交易记录（分页），并将每一笔交易转换成统一格式 TxMessage 返回
 func (s *BitcoinNodeService) ListTxByAddress(ctx context.Context, param domain.TxAddressParam) ([]domain.TxMessage, error) {
+	// thirdPartClient：调用外部服务（如 Blockstream、Mempool.space、BitGo 等）查询地址相关交易。
+	//返回结果里通常有：交易 hash、input、output、block 高度、时间、手续费等。
 	transaction, err := s.thirdPartClient.GetTransactionsByAddress(param.Address,
 		strconv.Itoa(int(param.Page)), strconv.Itoa(int(param.Pagesize)))
 	if err != nil {
@@ -530,21 +533,30 @@ func (s *BitcoinNodeService) ListTxByAddress(ctx context.Context, param domain.T
 	for _, txItems := range transaction.Txs {
 		var fromAddrs []string
 		var toAddrs []string
-		var values []string
-		var direction int32
+		var values []domain.Value
 		for _, inputs := range txItems.Inputs {
 			fromAddrs = append(fromAddrs, inputs.PrevOut.Addr)
+			values = append(values, domain.Value{
+				Address: inputs.PrevOut.Addr,
+				Value:   inputs.PrevOut.Value.String(),
+			})
 		}
 		txFee := txItems.Fee
 		for _, out := range txItems.Out {
 			toAddrs = append(toAddrs, out.Addr)
-			values = append(values, out.Value.String())
+			values = append(values, domain.Value{
+				Address: out.Addr,
+				Value:   out.Value.String(),
+			})
 		}
+		// 方向判断（是转出还是转入）
 		datetime := txItems.Time.String()
-		if strings.EqualFold(param.Address, fromAddrs[0]) {
-			direction = 0
-		} else {
-			direction = 1
+		direction := int32(1)
+		for _, fromAddr := range fromAddrs {
+			if strings.EqualFold(fromAddr, param.Address) {
+				direction = 0 // 出现在 inputs 中就是转出
+				break
+			}
 		}
 		txMessages = append(txMessages, domain.TxMessage{
 			Hash:     txItems.Hash,
@@ -562,13 +574,168 @@ func (s *BitcoinNodeService) ListTxByAddress(ctx context.Context, param domain.T
 }
 
 func (s *BitcoinNodeService) GetTxByHash(ctx context.Context, param domain.GetTxByHashParam) (domain.TxMessage, error) {
-	//TODO implement me
-	panic("implement me")
+	transaction, err := s.thirdPartClient.GetTransactionsByHash(param.Hash)
+	if err != nil {
+		return domain.TxMessage{}, err
+	}
+	var fromAddrs []string
+	var toAddrs []string
+	var values []domain.Value
+	for _, inputs := range transaction.Inputs {
+		fromAddrs = append(fromAddrs, inputs.PrevOut.Addr)
+		values = append(values, domain.Value{
+			Address: inputs.PrevOut.Addr,
+			Value:   inputs.PrevOut.Value.String(),
+		})
+	}
+	txFee := transaction.Fee
+	for _, out := range transaction.Out {
+		toAddrs = append(toAddrs, out.Addr)
+		values = append(values, domain.Value{
+			Address: out.Addr,
+			Value:   out.Value.String(),
+		})
+	}
+	datetime := transaction.Time.String()
+	// 方向判断（是转出还是转入）
+	return domain.TxMessage{
+		Hash:     transaction.Hash,
+		Froms:    fromAddrs,
+		Tos:      toAddrs,
+		Values:   values,
+		Fee:      txFee.String(),
+		Status:   domain.TxStatus_Success,
+		Height:   transaction.BlockHeight.String(),
+		Datetime: datetime,
+	}, nil
 }
 
-func (s *BitcoinNodeService) CreateUnSignTransaction(ctx context.Context, param domain.UnSignTransactionParam) (string, error) {
-	//TODO implement me
-	panic("implement me")
+//func (s *BitcoinNodeService) assembleUtXoTransactionReplyForTxHash(tx *btcjson.TxRawResult, blockHeight int64,
+//	getPrevTxInfo func(txid string, index uint32) (int64, string, error)) (*wallet2.TxHashResponse, error) {
+//	var totalAmountIn, totalAmountOut int64
+//	var from_addrs []*wallet2.Address
+//	var to_addrs []*wallet2.Address
+//	var value_list []*wallet2.Value
+//	var direction int32
+//	for _, in := range tx.Vin {
+//		amount, address, err := getPrevTxInfo(in.Txid, in.Vout)
+//		if err != nil {
+//			return nil, err
+//		}
+//		totalAmountIn += amount
+//		from_addrs = append(from_addrs, &wallet2.Address{Address: address})
+//		value_list = append(value_list, &wallet2.Value{Value: strconv.FormatInt(totalAmountIn, 10)})
+//	}
+//	for _, out := range tx.Vout {
+//		amount := btcToSatoshi(out.Value).Int64()
+//		totalAmountOut += amount
+//		addr := ""
+//		if len(out.ScriptPubKey.Addresses) > 0 {
+//			addr = out.ScriptPubKey.Addresses[0]
+//		}
+//		to_addrs = append(to_addrs, &wallet2.Address{Address: addr})
+//		value_list = append(value_list, &wallet2.Value{Value: strconv.FormatInt(totalAmountOut, 10)})
+//	}
+//	gasUsed := totalAmountIn - totalAmountOut
+//	return wallet2.TxMessage{
+//		Hash:   tx.Hash,
+//		Status: wallet2.TxStatus_Success,
+//		Froms:  from_addrs,
+//		Tos:    to_addrs,
+//		Fee:    strconv.FormatInt(gasUsed, 10),
+//		Values: value_list,
+//		Height: strconv.FormatInt(blockHeight, 10),
+//		Type:   direction,
+//	}, nil
+//}
+
+// CreateUnSignTransaction 构建一个 比特币未签名交易（Unsigned Tx）生成接口，用于支持离线签名、冷签名等场景。
+func (s *BitcoinNodeService) CreateUnSignTransaction(_ context.Context, param domain.UnSignTransactionParam) (domain.UnSignTransactionResult, error) {
+	txHash, buf, err := s.CalcSignHashes(param.Vin, param.Vout)
+	if err != nil {
+		log.Error("calc sign hashes fail", "err", err)
+		return domain.UnSignTransactionResult{}, err
+	}
+	return domain.UnSignTransactionResult{
+		TxData:     buf,
+		SignHashes: txHash,
+	}, nil
+}
+
+// CalcSignHashes 根据传入的 UTXO（Vin）和目标地址输出（Vout），
+// 构造出一笔 RawTx，并为每个 Vin 生成签名哈希（signHash），以供后续进行签名。
+// 调用者可以拿到：
+// SignHashes：每个 input 的签名哈希（需要私钥签名）
+// TxData：未序列化的交易结构体数据（这里其实是空的，有个 BUG，详见下文）
+func (s *BitcoinNodeService) CalcSignHashes(Vins []domain.Vin, Vouts []domain.Vout) ([][]byte, []byte, error) {
+	if len(Vins) == 0 || len(Vouts) == 0 {
+		return nil, nil, errors.New("invalid len in or out")
+	}
+	// 构建原始交易结构 rawTx， 这就是一个未签名的 MsgTx 对象。
+	rawTx := wire.NewMsgTx(wire.TxVersion)
+	/*
+		构建交易输入
+		每个 Vin 都构建为一个 TxIn，其引用的是：
+			前一个交易的 txid 和 pre vout index
+			这里暂时不带 ScriptSig（因为还没签名）
+	*/
+	for _, in := range Vins {
+		utxoHash, err := chainhash.NewHashFromStr(in.Hash)
+		if err != nil {
+			return nil, nil, err
+		}
+		txIn := wire.NewTxIn(wire.NewOutPoint(utxoHash, in.Index), nil, nil)
+		rawTx.AddTxIn(txIn)
+	}
+	/*
+		构建交易输出
+		每个 Vout 构建为一个 TxOut：
+			地址转为公钥脚本 PayToAddrScript
+			添加到交易中
+	*/
+	for _, out := range Vouts {
+		toAddress, err := btcutil.DecodeAddress(out.Address, &chaincfg.MainNetParams)
+		if err != nil {
+			return nil, nil, err
+		}
+		toPkScript, err := txscript.PayToAddrScript(toAddress)
+		if err != nil {
+			return nil, nil, err
+		}
+		rawTx.AddTxOut(wire.NewTxOut(out.Amount, toPkScript))
+	}
+	signHashes := make([][]byte, len(Vins))
+	/*
+		为每个输入生成签名哈希
+			每个 input 的签名哈希是针对该 input 所引用的 UTXO 地址脚本计算的
+			采用 SigHashAll：表示签名这整个交易（最常见的方式）
+	*/
+	for i, in := range Vins {
+		from := in.Address
+		fromAddr, err := btcutil.DecodeAddress(from, &chaincfg.MainNetParams)
+		if err != nil {
+			log.Info("decode address error", "from", from, "err", err)
+			return nil, nil, err
+		}
+		fromPkScript, err := txscript.PayToAddrScript(fromAddr)
+		if err != nil {
+			log.Info("pay to addr script err", "err", err)
+			return nil, nil, err
+		}
+		signHash, err := txscript.CalcSignatureHash(fromPkScript, txscript.SigHashAll, rawTx, i)
+		if err != nil {
+			log.Info("Calc signature hash error", "err", err)
+			return nil, nil, err
+		}
+		signHashes[i] = signHash
+	}
+	// 交易序列化数据
+	buf := bytes.NewBuffer(make([]byte, 0, rawTx.SerializeSize()))
+	err := rawTx.Serialize(buf)
+	if err != nil {
+		return nil, nil, err
+	}
+	return signHashes, buf.Bytes(), nil
 }
 
 func (s *BitcoinNodeService) BuildSignedTransaction(ctx context.Context, param domain.SignedTransactionParam) (domain.SignedTransaction, error) {

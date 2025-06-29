@@ -62,8 +62,8 @@ func (s *UnimplementedService) GetTxByHash(ctx context.Context, param domain.Get
 	return domain.TxMessage{}, nil
 }
 
-func (s *UnimplementedService) CreateUnSignTransaction(ctx context.Context, param domain.UnSignTransactionParam) (string, error) {
-	return "", nil
+func (s *UnimplementedService) CreateUnSignTransaction(ctx context.Context, param domain.UnSignTransactionParam) (domain.UnSignTransactionResult, error) {
+	return domain.UnSignTransactionResult{}, nil
 }
 
 func (s *UnimplementedService) BuildSignedTransaction(ctx context.Context, param domain.SignedTransactionParam) (domain.SignedTransaction, error) {
