@@ -19,9 +19,9 @@ type WalletUtXoService interface {
 	SendTx(ctx context.Context, param domain.SendTxParam) (string, error)
 	ListTxByAddress(ctx context.Context, param domain.TxAddressParam) ([]domain.TxMessage, error)
 	// ----------------
-	GetTxByHash(ctx context.Context, param domain.GetTxByHashParam) (domain.TxMessage, error)
+	GetTxByHash(ctx context.Context, param domain.TxByHashParam) (domain.TxMessage, error)
 	CreateUnSignTransaction(ctx context.Context, param domain.UnSignTransactionParam) (domain.UnSignTransactionResult, error)
 	BuildSignedTransaction(ctx context.Context, param domain.SignedTransactionParam) (domain.SignedTransaction, error)
-	DecodeTransaction(ctx context.Context, param domain.DecodeTransactionParam) (string, error)
+	DecodeTransaction(ctx context.Context, param domain.DecodeTransactionParam) (domain.DecodedTransaction, error)
 	VerifySignedTransaction(ctx context.Context, param domain.VerifyTransactionParam) (bool, error)
 }

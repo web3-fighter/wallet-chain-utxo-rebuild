@@ -1,12 +1,24 @@
 package domain
 
+import (
+	"math/big"
+)
+
+type DecodeTx struct {
+	Hash       string
+	SignHashes [][]byte
+	Vins       []Vin
+	Vouts      []Vout
+	CostFee    *big.Int
+}
+
 type UnSignTransactionParam struct {
 	ConsumerToken string `json:"consumer_token,omitempty"`
 	Chain         string `json:"chain,omitempty"`
 	Network       string `json:"network,omitempty"`
-	Fee           string // 可选，最终会体现在 output 金额里"`
-	Vin           []Vin  // 输入（来源地址、引用 txid 和 vout）
-	Vout          []Vout // 输出（目标地址、金额）
+	Fee           string `json:"fee,omitempty"`   // 可选，最终会体现在 output 金额里"`
+	Vins          []Vin  `json:"vins,omitempty"`  // 输入（来源地址、引用 txid 和 vout）
+	Vouts         []Vout `json:"vouts,omitempty"` // 输出（目标地址、金额）
 }
 
 type UnSignTransactionResult struct {
@@ -14,7 +26,7 @@ type UnSignTransactionResult struct {
 	SignHashes [][]byte `json:"sign_hashes,omitempty"`
 }
 
-type GetTxByHashParam struct {
+type TxByHashParam struct {
 	ConsumerToken string `json:"consumer_token,omitempty"`
 	Chain         string `json:"chain,omitempty"`
 	Coin          string `json:"coin,omitempty"`
@@ -211,6 +223,32 @@ type Fee struct {
 	FastFee    string `json:"fast_fee,omitempty"`
 }
 
+type DecodeTransactionParam struct {
+	Chain   string `json:"chain,omitempty"`
+	Network string `json:"network,omitempty"`
+	RawData []byte `json:"raw_data,omitempty"`
+	Vins    []Vin  `json:"vins,omitempty"`
+}
+
+type DecodedTransaction struct {
+	TxHash      string   `json:"tx_hash,omitempty"`
+	Status      TxStatus `json:"status,omitempty"`
+	Vins        []Vin    `json:"vins,omitempty"`
+	Vouts       []Vout   `json:"vouts,omitempty"`
+	SignHashes  [][]byte `json:"sign_hashes,omitempty"`
+	CostFee     string   `json:"cost_fee,omitempty"`
+	BlockHeight uint64   `json:"block_height,omitempty"`
+	BlockTime   uint64   `json:"block_time,omitempty"`
+}
+
+type VerifyTransactionParam struct {
+	ConsumerToken string `json:"consumer_token,omitempty"`
+	Chain         string `json:"chain,omitempty"`
+	Network       string `json:"network,omitempty"`
+	RawData       []byte `json:"raw_data,omitempty"`
+	Vins          []Vin  `json:"vins,omitempty"`
+}
+
 //  TODO-----------------------------
 
 type CommonParam struct {
@@ -226,22 +264,6 @@ type ExtraDataParam struct {
 	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
 	Address       string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
 	Coin          string `protobuf:"bytes,5,opt,name=coin,proto3" json:"coin,omitempty"`
-}
-
-type VerifyTransactionParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	PublicKey     string `protobuf:"bytes,4,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Signature     string `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
-	RawTx         string `protobuf:"bytes,4,opt,name=raw_tx,json=rawTx,proto3" json:"raw_tx,omitempty"`
-}
-
-type DecodeTransactionParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	RawTx         string `protobuf:"bytes,4,opt,name=raw_tx,json=rawTx,proto3" json:"raw_tx,omitempty"`
 }
 
 type SignedTransactionParam struct {
