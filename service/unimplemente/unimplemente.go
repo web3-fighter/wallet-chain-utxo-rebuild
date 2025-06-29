@@ -58,7 +58,7 @@ func (s *UnimplementedService) ListTxByAddress(ctx context.Context, param domain
 	return nil, nil
 }
 
-func (s *UnimplementedService) GetTxByHash(ctx context.Context, param domain.GetTxByHashParam) (domain.TxMessage, error) {
+func (s *UnimplementedService) GetTxByHash(ctx context.Context, param domain.TxByHashParam) (domain.TxMessage, error) {
 	return domain.TxMessage{}, nil
 }
 
@@ -70,8 +70,8 @@ func (s *UnimplementedService) BuildSignedTransaction(ctx context.Context, param
 	return domain.SignedTransaction{}, nil
 }
 
-func (s *UnimplementedService) DecodeTransaction(ctx context.Context, param domain.DecodeTransactionParam) (string, error) {
-	return "", nil
+func (s *UnimplementedService) DecodeTransaction(ctx context.Context, param domain.DecodeTransactionParam) (domain.DecodedTransaction, error) {
+	return domain.DecodedTransaction{}, nil
 }
 
 func (s *UnimplementedService) VerifySignedTransaction(ctx context.Context, param domain.VerifyTransactionParam) (bool, error) {

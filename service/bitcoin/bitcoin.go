@@ -573,7 +573,7 @@ func (s *BitcoinNodeService) ListTxByAddress(ctx context.Context, param domain.T
 	return txMessages, nil
 }
 
-func (s *BitcoinNodeService) GetTxByHash(ctx context.Context, param domain.GetTxByHashParam) (domain.TxMessage, error) {
+func (s *BitcoinNodeService) GetTxByHash(ctx context.Context, param domain.TxByHashParam) (domain.TxMessage, error) {
 	transaction, err := s.thirdPartClient.GetTransactionsByHash(param.Hash)
 	if err != nil {
 		return domain.TxMessage{}, err
@@ -651,7 +651,7 @@ func (s *BitcoinNodeService) GetTxByHash(ctx context.Context, param domain.GetTx
 
 // CreateUnSignTransaction 构建一个 比特币未签名交易（Unsigned Tx）生成接口，用于支持离线签名、冷签名等场景。
 func (s *BitcoinNodeService) CreateUnSignTransaction(_ context.Context, param domain.UnSignTransactionParam) (domain.UnSignTransactionResult, error) {
-	txHash, buf, err := s.CalcSignHashes(param.Vin, param.Vout)
+	txHash, buf, err := s.CalcSignHashes(param.Vins, param.Vouts)
 	if err != nil {
 		log.Error("calc sign hashes fail", "err", err)
 		return domain.UnSignTransactionResult{}, err
@@ -743,14 +743,188 @@ func (s *BitcoinNodeService) BuildSignedTransaction(ctx context.Context, param d
 	panic("implement me")
 }
 
-func (s *BitcoinNodeService) DecodeTransaction(ctx context.Context, param domain.DecodeTransactionParam) (string, error) {
-	//TODO implement me
-	panic("implement me")
+func (s *BitcoinNodeService) DecodeTransaction(ctx context.Context, param domain.DecodeTransactionParam) (domain.DecodedTransaction, error) {
+	res, err := s.DecodeTx(param.RawData, param.Vins, false)
+	if err != nil {
+		log.Info("decode tx fail", "err", err)
+		return domain.DecodedTransaction{}, err
+	}
+	return domain.DecodedTransaction{
+		SignHashes: res.SignHashes,
+		Status:     domain.TxStatus_Other,
+		Vins:       res.Vins,
+		Vouts:      res.Vouts,
+		CostFee:    res.CostFee.String(),
+	}, nil
 }
 
 func (s *BitcoinNodeService) VerifySignedTransaction(ctx context.Context, param domain.VerifyTransactionParam) (bool, error) {
-	//TODO implement me
-	panic("implement me")
+	_, err := s.DecodeTx(param.RawData, param.Vins, true)
+	if err != nil {
+		log.Info("decode tx fail", "err", err)
+		return false, err
+	}
+	return true, nil
+}
+
+// DecodeTx 是一个典型的 交易反解析器（Decoder），特别适用于离线签名场景下的交易构建、预览和验证。
+/*
+将一笔 原始交易数据（txData） 解码出来：
+	若 vins 为空 → 在线模式，通过 RPC 获取 UTXO 金额等
+	若 vins 有值 → 离线模式，直接信任并使用传入的数据
+	判断是否验签（sign == true 时校验每个输入的签名）
+	返回交易的签名哈希、输入输出详情和手续费
+*/
+func (s *BitcoinNodeService) DecodeTx(txData []byte, vins []domain.Vin, sign bool) (domain.DecodeTx, error) {
+	var msgTx wire.MsgTx
+	// 反序列化交易数据，将原始交易字节反序列化成 MsgTx 结构体。
+	err := msgTx.Deserialize(bytes.NewReader(txData))
+	if err != nil {
+		return domain.DecodeTx{}, err
+	}
+
+	// 是否处于“离线模式”
+	// 离线：要 vins，不通过链上查询 UTXO
+	// 在线：不需要 vins，直接通过 RPC 获取 UTXO 金额等信息
+	offline := true
+	if len(vins) == 0 {
+		offline = false
+	}
+	// 离线 && 校验 vins 和交易输入数量是否匹配（否则难以计算金额）
+	if offline && len(vins) != len(msgTx.TxIn) {
+		return domain.DecodeTx{}, errors.New("the length of deserialized tx's in differs from vin")
+	}
+
+	// 解码交易的输入输出， 获取每个输入的地址和金额
+	ins, totalAmountIn, err := s.DecodeVins(msgTx, offline, vins, sign)
+	if err != nil {
+		return domain.DecodeTx{}, err
+	}
+
+	// 解码输出信息，提取 TxOut 中的收款地址和金额
+	outs, totalAmountOut, err := s.DecodeVouts(msgTx)
+	if err != nil {
+		return domain.DecodeTx{}, err
+	}
+
+	// 计算每个输入的签名哈希
+	signHashes, _, err := s.CalcSignHashes(ins, outs)
+	if err != nil {
+		return domain.DecodeTx{}, err
+	}
+	// 拼接结果结构体返回
+	res := domain.DecodeTx{
+		SignHashes: signHashes,
+		Vins:       ins,
+		Vouts:      outs,
+		CostFee:    totalAmountIn.Sub(totalAmountIn, totalAmountOut),
+	}
+	if sign {
+		res.Hash = msgTx.TxHash().String()
+	}
+	return res, nil
+}
+
+// DecodeVins  解析交易中的每个输入 TxIn，并返回其地址、金额（UTXO）等信息。
+func (s *BitcoinNodeService) DecodeVins(msgTx wire.MsgTx, offline bool, vins []domain.Vin, sign bool) ([]domain.Vin, *big.Int, error) {
+	ins := make([]domain.Vin, 0, len(msgTx.TxIn))
+	totalAmountIn := big.NewInt(0)
+	// 遍历每个 TxIn：
+	for index, in := range msgTx.TxIn {
+		// 离线：从 vins 中获取
+		// 在线：通过 RPC 查询 GetRawTransactionVerbose 获取该 UTXO 的来源地址和金额
+		vin, err := s.GetVin(offline, vins, index, in)
+		if err != nil {
+			return nil, nil, err
+		}
+		// 如果是 sign == true：
+		if sign {
+			// 调用验签逻辑，确保签名是有效的
+			err = s.VerifySign(vin, msgTx, index)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+		// 累计总金额
+		totalAmountIn.Add(totalAmountIn, big.NewInt(vin.Amount))
+		ins = append(ins, vin)
+	}
+	return ins, totalAmountIn, nil
+}
+
+// DecodeVouts 遍历每个 TxOut，从 PkScript 提取出目标地址。
+func (s *BitcoinNodeService) DecodeVouts(msgTx wire.MsgTx) ([]domain.Vout, *big.Int, error) {
+	outs := make([]domain.Vout, 0, len(msgTx.TxOut))
+	totalAmountOut := big.NewInt(0)
+	// 遍历每个 TxOut，从 PkScript 提取出目标地址。
+
+	for _, out := range msgTx.TxOut {
+		var t domain.Vout
+		// 使用 txscript.ExtractPkScriptAddrs 提取 PkScript 中的地址
+		// 这个方法会解析 P2PKH/P2SH 等脚本，取出地址数组（通常只取第一个）。
+		_, pubKeyAddress, _, err := txscript.ExtractPkScriptAddrs(out.PkScript, &chaincfg.MainNetParams)
+		if err != nil {
+			return nil, nil, err
+		}
+		t.Address = pubKeyAddress[0].EncodeAddress()
+		t.Amount = out.Value
+		totalAmountOut.Add(totalAmountOut, big.NewInt(t.Amount))
+		outs = append(outs, t)
+	}
+	return outs, totalAmountOut, nil
+}
+
+// GetVin 用于获取某一个交易输入对应的金额和地址信息。
+func (s *BitcoinNodeService) GetVin(offline bool, vins []domain.Vin, index int, in *wire.TxIn) (domain.Vin, error) {
+	var vin domain.Vin
+	if offline {
+		// 离线：从 vins 中获取
+		vin = vins[index]
+	} else {
+		// 在线：通过 RPC 查询 GetRawTransactionVerbose 获取该 UTXO 的来源地址和金额
+		preTx, err := s.btcClient.GetRawTransactionVerbose(&in.PreviousOutPoint.Hash)
+		if err != nil {
+			return vin, err
+		}
+		out := preTx.Vout[in.PreviousOutPoint.Index]
+		vin = domain.Vin{
+			Amount:  btcToSatoshi(out.Value).Int64(),
+			Address: out.ScriptPubKey.Address,
+		}
+	}
+	vin.Hash = in.PreviousOutPoint.Hash.String()
+	vin.Index = in.PreviousOutPoint.Index
+	return vin, nil
+}
+
+// VerifySign 比特币签名验证器：确保交易已签名，且签名有效。
+func (s *BitcoinNodeService) VerifySign(vin domain.Vin, msgTx wire.MsgTx, index int) error {
+	// 是在 将字符串形式的比特币地址，解析成比特币库内部可操作的地址对象 btcutil.Address 类型。
+	/*
+		解析出来的 btcutil.Address 对象可以用于：
+			构造输出脚本（PayToAddrScript）
+			获取地址类型（P2PKH、P2SH、Bech32）
+			校验地址是否合法并匹配当前网络
+	*/
+	fromAddress, err := btcutil.DecodeAddress(vin.Address, &chaincfg.MainNetParams)
+	if err != nil {
+		return err
+	}
+
+	// 地址转为 PkScript
+	fromPkScript, err := txscript.PayToAddrScript(fromAddress)
+	if err != nil {
+		return err
+	}
+
+	// 构造验证器引擎, 此引擎根据 Bitcoin 标准脚本规则验证对应 input。
+	vm, err := txscript.NewEngine(fromPkScript, &msgTx, index, txscript.StandardVerifyFlags, nil, nil, vin.Amount, nil)
+	if err != nil {
+		return err
+	}
+
+	// 执行脚本校验
+	return vm.Execute()
 }
 
 func NewBitcoinNodeService(
