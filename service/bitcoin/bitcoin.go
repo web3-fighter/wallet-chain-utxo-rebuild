@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/ecdsa"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -738,9 +739,176 @@ func (s *BitcoinNodeService) CalcSignHashes(Vins []domain.Vin, Vouts []domain.Vo
 	return signHashes, buf.Bytes(), nil
 }
 
+// BuildSignedTransaction 构建已签名的 Bitcoin 交易
+/*
+输入：
+	param.TxData：原始交易数据（未经签名）。
+	param.Signatures：每个 input 的签名。
+	param.PublicKeys：每个 input 对应的公钥。
+输出：
+	domain.SignedTransaction{SignedTxData, Hash}：签名后的交易原始数据和交易哈希。
+	错误信息（如果构造失败）。
+*/
 func (s *BitcoinNodeService) BuildSignedTransaction(ctx context.Context, param domain.SignedTransactionParam) (domain.SignedTransaction, error) {
-	//TODO implement me
-	panic("implement me")
+	r := bytes.NewReader(param.TxData)
+	var msgTx wire.MsgTx
+	// 反序列化交易数据
+	err := msgTx.Deserialize(r)
+	if err != nil {
+		log.Error("Create signed transaction msg tx deserialize", "err", err)
+		return domain.SignedTransaction{}, err
+	}
+
+	//  校验参数长度，每个 input 必须对应一组 Signature 和 PublicKey，否则就报错。
+	if len(param.Signatures) != len(msgTx.TxIn) {
+		log.Error("CreateSignedTransaction invalid params", "err", "Signature number mismatch Txin number")
+		err = errors.New("Signature number != Txin number")
+		return domain.SignedTransaction{}, err
+	}
+
+	if len(param.PublicKeys) != len(msgTx.TxIn) {
+		log.Error("CreateSignedTransaction invalid params", "err", "Pubkey number mismatch Txin number")
+		err = errors.New("Pubkey number != Txin number")
+		return domain.SignedTransaction{}, err
+	}
+
+	// 遍历每个 input，填充签名脚本（SignatureScript）和验证脚本（PubKeyScript）
+	for i, in := range msgTx.TxIn {
+		// 解析公钥（压缩/非压缩）， 根据输入的公钥是否为压缩格式，决定输出形式。
+		btcecPub, err2 := btcec.ParsePubKey(param.PublicKeys[i])
+		if err2 != nil {
+			log.Error("CreateSignedTransaction ParsePubKey", "err", err2)
+			return domain.SignedTransaction{}, err2
+		}
+		var pkData []byte
+		if btcec.IsCompressedPubKey(param.PublicKeys[i]) {
+			pkData = btcecPub.SerializeCompressed()
+		} else {
+			pkData = btcecPub.SerializeUncompressed()
+		}
+
+		//  获取前置交易输出（UTXO),从链上获取前一笔交易，定位当前 input 对应的 UTXO。
+		preTx, err2 := s.btcClient.GetRawTransactionVerbose(&in.PreviousOutPoint.Hash)
+		if err2 != nil {
+			log.Error("CreateSignedTransaction GetRawTransactionVerbose", "err", err2)
+			return domain.SignedTransaction{}, err2
+		}
+
+		log.Info("CreateSignedTransaction ", "from address", preTx.Vout[in.PreviousOutPoint.Index].ScriptPubKey.Address)
+
+		// 生成 PkScript（锁定脚本）,用于后续 sigScript 验证。
+		fromAddress, err2 := btcutil.DecodeAddress(preTx.Vout[in.PreviousOutPoint.Index].ScriptPubKey.Address, &chaincfg.MainNetParams)
+		if err2 != nil {
+			log.Error("CreateSignedTransaction DecodeAddress", "err", err2)
+			return domain.SignedTransaction{}, err2
+		}
+
+		// 构造 SignatureScript
+		/*
+			签名（R、S）组装为 DER 格式 + SigHashAll。
+			用 sig + pubKey 构建 sigScript。
+		*/
+		fromPkScript, err2 := txscript.PayToAddrScript(fromAddress)
+		if err2 != nil {
+			log.Error("CreateSignedTransaction PayToAddrScript", "err", err2)
+			return domain.SignedTransaction{}, err2
+		}
+		/*
+			将一个 Bitcoin 单签名数据从原始的 [R|S] 二进制形式，
+			构造为标准的 SignatureScript（P2PKH 的形式），可被后续比特币交易引擎验证。
+		*/
+		//  签名长度校验
+		/*
+			比特币签名由两个 32 字节的大整数组成：
+					R：签名的 X 坐标。
+					S：签名的验证因子。
+				因此，签名长度应至少为 64 字节（32字节 R + 32字节 S）。
+					如果不足 64 字节，就直接返回错误。
+		*/
+		if len(param.Signatures[i]) < 64 {
+			err2 = errors.New("Invalid signature length")
+			return domain.SignedTransaction{}, err2
+		}
+		// 将签名拆分成 R 和 S
+		/*
+			意图是从原始签名字节数组中：
+				提取前 32 字节作为 R。
+				提取后 32 字节作为 S。
+			然后转换为 btcec.ModNScalar 类型，用于构造 ecdsa.Signature 对象。
+		*/
+		var rScalar btcec.ModNScalar
+		R := rScalar.SetInt(rScalar.SetBytes((*[32]byte)(param.Signatures[i][0:32])))
+		var sScalar btcec.ModNScalar
+		S := sScalar.SetInt(sScalar.SetBytes((*[32]byte)(param.Signatures[i][32:64])))
+
+		//var rScalar, sScalar btcec.ModNScalar
+		//rScalar.SetBytes((*[32]byte)(param.Signatures[i][0:32]))
+		//sScalar.SetBytes((*[32]byte)(param.Signatures[i][32:64]))
+
+		// 构建 btcec 签名对象
+		/*
+			用两个 scalar 值 R、S 构造一个标准 ECDSA 签名对象。
+			类型是 *ecdsa.Signature，可以用来序列化为标准格式或验证。
+		*/
+		btcecSig := ecdsa.NewSignature(R, S)
+		// 构建完整的 Bitcoin 签名数据（用于 script）
+		/*
+				.Serialize() 会将 R 和 S 转为 DER 编码格式（Bitcoin 标准签名格式）。
+				后面 txscript.SigHashAll（= 0x01）是签名哈希类型，表明本次签名适用于“当前交易所有输入/输出”。
+
+			最终构成的 sig 是：
+				<DER格式签名> + <1字节的SigHashType>
+			例如：
+				3045...0220...01
+		*/
+		sig := append(btcecSig.Serialize(), byte(txscript.SigHashAll))
+		// 构建 SignatureScript
+		/*
+			这是标准的 P2PKH ScriptSig 构建：
+			编辑
+				<sig> <pubKey>
+				用于解锁 UTXO 的锁定脚本（通常是 OP_DUP OP_HASH160 <pubKeyHash> OP_EQUALVERIFY OP_CHECKSIG）。
+
+			AddData() 的作用：
+				会自动加上 PUSH 操作码。
+				脚本执行时栈顶是签名，其次是公钥，满足验证条件。
+		*/
+		sigScript, err2 := txscript.NewScriptBuilder().AddData(sig).AddData(pkData).Script()
+		if err2 != nil {
+			log.Error("create signed transaction new script builder", "err", err2)
+			return domain.SignedTransaction{}, err2
+		}
+
+		// 填充签名脚本到 TxIn
+		msgTx.TxIn[i].SignatureScript = sigScript
+		amount := btcToSatoshi(preTx.Vout[in.PreviousOutPoint.Index].Value).Int64()
+		log.Info("CreateSignedTransaction ", "amount", preTx.Vout[in.PreviousOutPoint.Index].Value, "int amount", amount)
+
+		// 验证脚本执行正确性
+		vm, err2 := txscript.NewEngine(fromPkScript, &msgTx, i, txscript.StandardVerifyFlags, nil, nil, amount, nil)
+		if err2 != nil {
+			log.Error("create signed transaction newEngine", "err", err2)
+			return domain.SignedTransaction{}, err2
+		}
+		// 调用比特币 VM 虚拟机执行 sigScript + pkScript，确保签名有效。
+		if err3 := vm.Execute(); err3 != nil {
+			log.Error("CreateSignedTransaction NewEngine Execute", "err", err3)
+			return domain.SignedTransaction{}, err3
+		}
+	}
+	// 所有 input 构建完成后，序列化交易并生成哈希
+	buf := bytes.NewBuffer(make([]byte, 0, msgTx.SerializeSize()))
+	err = msgTx.Serialize(buf)
+	if err != nil {
+		log.Error("CreateSignedTransaction tx Serialize", "err", err)
+		return domain.SignedTransaction{}, err
+	}
+
+	hash := msgTx.TxHash()
+	return domain.SignedTransaction{
+		SignedTxData: buf.Bytes(),
+		Hash:         (&hash).CloneBytes(),
+	}, nil
 }
 
 func (s *BitcoinNodeService) DecodeTransaction(ctx context.Context, param domain.DecodeTransactionParam) (domain.DecodedTransaction, error) {

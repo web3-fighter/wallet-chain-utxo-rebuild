@@ -12,6 +12,20 @@ type DecodeTx struct {
 	CostFee    *big.Int
 }
 
+type SignedTransactionParam struct {
+	ConsumerToken string   `json:"consumer_token,omitempty"`
+	Chain         string   `json:"chain,omitempty"`
+	Network       string   `json:"network,omitempty"`
+	TxData        []byte   `json:"tx_data,omitempty"`
+	Signatures    [][]byte `json:"signatures,omitempty"`
+	PublicKeys    [][]byte `json:"public_keys,omitempty"`
+}
+
+type SignedTransaction struct {
+	SignedTxData []byte `json:"signed_tx_data,omitempty"`
+	Hash         []byte `json:"hash,omitempty"`
+}
+
 type UnSignTransactionParam struct {
 	ConsumerToken string `json:"consumer_token,omitempty"`
 	Chain         string `json:"chain,omitempty"`
@@ -264,20 +278,6 @@ type ExtraDataParam struct {
 	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
 	Address       string `protobuf:"bytes,4,opt,name=address,proto3" json:"address,omitempty"`
 	Coin          string `protobuf:"bytes,5,opt,name=coin,proto3" json:"coin,omitempty"`
-}
-
-type SignedTransactionParam struct {
-	ConsumerToken string `protobuf:"bytes,1,opt,name=consumer_token,json=consumerToken,proto3" json:"consumer_token,omitempty"`
-	Chain         string `protobuf:"bytes,2,opt,name=chain,proto3" json:"chain,omitempty"`
-	Network       string `protobuf:"bytes,3,opt,name=network,proto3" json:"network,omitempty"`
-	Base64Tx      string `protobuf:"bytes,4,opt,name=base64_tx,json=base64Tx,proto3" json:"base64_tx,omitempty"`
-	Signature     string `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
-	PublicKey     string `protobuf:"bytes,6,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-}
-
-type SignedTransaction struct {
-	TxHash   string `json:"tx_hash,omitempty"`
-	SignedTx string `json:"signed_tx,omitempty"`
 }
 
 type BlockHeaderByRangeParam struct {
